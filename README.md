@@ -259,19 +259,21 @@ osmPhone/
 
 ### Phase 2 — Bluetooth & SMS (in progress)
 - [ ] Real device pairing and HFP connection
-- [ ] SMS send/receive end-to-end
-- [ ] LLM-powered auto-reply for texts
-- [ ] Conversation history (SQLite)
+- [x] SMS send/receive orchestration (Python layer)
+- [x] LLM-powered auto-reply for texts
+- [x] Conversation history (SQLite)
 
 ### Phase 3 — Voice Calls
 - [ ] SCO audio capture via CoreAudio
-- [ ] Voice activity detection (VAD)
-- [ ] STT → LLM → TTS pipeline
+- [x] Voice activity detection (VAD)
+- [x] STT → LLM → TTS pipeline engine implementation
+- [x] Audio resampling engine
 - [ ] Audio injection back into SCO channel
 - [ ] OpenAI Realtime API fast path
 
 ### Phase 4 — Web UI
-- [ ] Next.js + shadcn dialer
+- [x] Next.js + shadcn framework bootstrap
+- [ ] Next.js dialer interface
 - [ ] Real-time call transcript view
 - [ ] Message thread interface
 - [ ] Settings and provider switching

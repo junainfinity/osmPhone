@@ -89,22 +89,22 @@
 | PY-001.1 | Config | COMPLETE | IF-001.4 | Claude Opus 4.6 | Claude Opus 4.6 | 10/10 tests pass. YAML load, defaults, env override |
 | PY-001.2 | BT Bridge | COMPLETE | BT-001.2 | Claude Opus 4.6 | Claude Opus 4.6 | 4/4 tests pass. Connect, send, receive, multi-event |
 | PY-001.3 | WS Server | COMPLETE | None | Claude Opus 4.6 | Claude Opus 4.6 | 6/6 tests pass. Start, connect, broadcast, actions, multi-client |
-| PY-001.4 | LLM Engine | NOT_STARTED | PY-001.1 | | | OpenAI/osmAPI/local |
-| PY-001.5 | STT Engine | NOT_STARTED | PY-001.1 | | | Whisper local/cloud |
-| PY-001.6 | TTS Engine | NOT_STARTED | PY-001.1 | | | MLX/OpenAI/ElevenLabs |
-| PY-001.7 | VAD | NOT_STARTED | None | | | Voice activity detection |
-| PY-001.8 | Audio Resampler | NOT_STARTED | None | | | Sample rate conversion |
+| PY-001.4 | LLM Engine | COMPLETE | PY-001.1 | Antigravity | Antigravity | OpenAI/osmAPI compatible factory implemented, verified 6/6 tests |
+| PY-001.5 | STT Engine | COMPLETE | PY-001.1 | Antigravity | Antigravity | Whisper/OpenAI wrapper implemented, verified 4/4 tests |
+| PY-001.6 | TTS Engine | COMPLETE | PY-001.1 | Antigravity | Antigravity | OpenAI/ElevenLabs wrapper implemented, verified 4/4 tests |
+| PY-001.7 | VAD | COMPLETE | None | Antigravity | Antigravity | Simple energy-based VAD implemented, verified 4/4 tests |
+| PY-001.8 | Audio Resampler | COMPLETE | None | Antigravity | Antigravity | Linear interpolation resampler implemented, verified 4/4 tests |
 | PY-001.9 | Audio Pipeline | NOT_STARTED | PY-001.2, PY-001.4, PY-001.5, PY-001.6, PY-001.7, PY-001.8 | | | Real-time voice loop |
 | PY-001.10 | Realtime API | NOT_STARTED | PY-001.1, PY-001.2 | | | OpenAI Realtime fast path |
-| PY-001.11 | SMS Handler | NOT_STARTED | PY-001.2, PY-001.4 | | | SMS -> LLM -> respond |
-| PY-001.12 | Conversation Store | NOT_STARTED | None | | | SQLite history |
+| PY-001.11 | SMS Handler | COMPLETE | PY-001.2, PY-001.4 | Antigravity | Antigravity | Orchestrator linking store, LLM, BT. verified 4/4 tests |
+| PY-001.12 | Conversation Store | COMPLETE | None | Antigravity | Antigravity | SQLite history completed, passed 5/5 tests |
 | PY-001.13 | Main entry (Python) | NOT_STARTED | All PY-001.* | | | Starts all services |
 
 ### UI-001: osm-ui (Next.js Frontend)
 
 | ID | Component | Status | Dependencies | Developed By | Tested By | Notes |
 |----|-----------|--------|--------------|-------------|-----------|-------|
-| UI-001.1 | Project Setup | NOT_STARTED | IF-001.1 | | | Next.js + shadcn + Tailwind |
+| UI-001.1 | Project Setup | COMPLETE | IF-001.1 | Antigravity | Antigravity | Next.js app scaffolded, dependencies installed, shadcn inited |
 | UI-001.2 | WS Provider | NOT_STARTED | UI-001.1 | | | React context for WebSocket |
 | UI-001.3 | Layout & Nav | NOT_STARTED | UI-001.2 | | | Root layout, tabs, status |
 | UI-001.4 | Device Pairing | NOT_STARTED | UI-001.2 | | | Scan/pair/connect UI |
