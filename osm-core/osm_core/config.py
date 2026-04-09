@@ -52,6 +52,7 @@ class STTConfig:
     provider: str = "local"  # local | openai
     model: str = "distil-large-v3"
     language: str = "en"
+    api_key: str = ""  # Shared from LLM config or set separately
 
 
 @dataclass
@@ -59,6 +60,7 @@ class TTSConfig:
     provider: str = "openai"  # local | openai | elevenlabs
     voice: str = "nova"
     elevenlabs_api_key: str = ""
+    api_key: str = ""  # Shared from LLM config or set separately
     speed: float = 1.0
 
 
@@ -151,11 +153,26 @@ def _from_dict(cls, data: dict):
 
 
 def _apply_env(config: Config) -> Config:
-    """Override config values from environment variables."""
-    if key := os.environ.get("OPENAI_API_KEY"):
-        config.llm.api_key = key
-    if key := os.environ.get("ELEVENLABS_API_KEY"):
-        config.tts.elevenlabs_api_key = key
-    if url := os.environ.get("OSM_API_BASE_URL"):
-        config.llm.base_url = url
+    """Override config values from environment variables.
+
+    Also propagates the OpenAI API key to STT/TTS configs so they
+    can use the same key without requiring separate config entries.
+    """
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        config.llm.api_key = openai_key
+    eleven_key = os.environ.get("ELEVENLABS_API_KEY")
+    if eleven_key:
+        config.tts.elevenlabs_api_key = eleven_key
+    osm_url = os.environ.get("OSM_API_BASE_URL")
+    if osm_url:
+        config.llm.base_url = osm_url
+
+    # Propagate OpenAI key to STT/TTS if not set independently
+    shared_key = config.llm.api_key
+    if shared_key and not config.stt.api_key:
+        config.stt.api_key = shared_key
+    if shared_key and not config.tts.api_key:
+        config.tts.api_key = shared_key
+
     return config

@@ -4,40 +4,46 @@
 
 **What this project is**: A Mac app that emulates a Bluetooth headset (HFP profile) to any phone, then uses LLM/STT/TTS to handle texts and calls. Three processes: Swift (Bluetooth), Python (AI), Next.js (UI).
 
-**Current state (2026-04-09)**: Phase 1+2 complete. The IPC and communication layers are built and tested. No Bluetooth or AI features have been tested against real hardware yet.
+**Current state (2026-04-09, update 2)**: Phases 1-4 largely complete. All Python AI components, full Next.js UI, and integration wiring are done. 96/96 tests passing. Remaining: real Bluetooth hardware testing, SCO audio capture, and OpenAI Realtime API.
 
-### What's working
-- Swift compiles cleanly (`cd osm-bt && swift build`) — all Bluetooth wrappers compile against IOBluetooth.framework
-- Protocol layer (BT-001.1): 9/9 unit tests pass — JSON encode/decode for all IPC message types
-- Python config (PY-001.1): 10/10 tests — YAML loading, defaults, env var overrides
-- Python BT bridge (PY-001.2): 4/4 tests — async Unix socket connect, send, receive, multi-event
-- Python WS server (PY-001.3): 6/6 tests — WebSocket start, broadcast, action dispatch, multi-client
+### What's working (96/96 tests pass)
+- **Swift** (9 tests): Protocol encode/decode, all BT wrappers compile
+- **Python** (56 tests): Config, BT bridge, WS server, LLM engine, STT engine, TTS engine, VAD, resampler, audio pipeline, SMS handler, conversation store
+- **Next.js** (31 tests): WS provider, layout, dialer, active call, incoming call, messages, settings, device pairing
+- **main.py fully wired**: BT events -> WS broadcasts, WS actions -> BT commands, audio pipeline + SMS handler instantiated
 
 ### What's NOT working / not yet tested
-- **No real Bluetooth testing yet**. BT-001.3/4/5/6 compile but need a paired phone to validate. The IOBluetooth delegate methods may need tweaking once real events fire.
-- **SCOAudioBridge (BT-001.5) is a stub**. The CoreAudio device discovery works, but the AudioUnit capture/injection pipeline is TODO. This is the hardest part — capturing PCM from the SCO channel and injecting TTS audio back.
-- **osm-ui has no code yet**. The directory structure exists but Node.js wasn't installed on the dev machine. Need `npx create-next-app` to bootstrap.
-- **PY-001.13 main.py is a skeleton**. The event wiring between BT bridge and WS server is placeholder (see the `pass` statements).
+- **No real Bluetooth testing yet**. BT-001.3/4/5/6 compile but need a paired phone.
+- **SCOAudioBridge (BT-001.5) is a stub**. CoreAudio capture/injection pipeline TODO.
+- **STT local engine (WhisperLocalEngine)** returns placeholder text. Needs `lightning-whisper-mlx`.
+- **TTS local engine (LocalTTSEngine)** returns silence. Needs `mlx-audio`.
+- **LLM local engine** delegates to OpenAI-compatible endpoint (works with ollama/vllm).
+- **PY-001.10 OpenAI Realtime API** not started.
+- **Provider hot-switching** (changing STT/TTS mid-session) not implemented in main.py.
 
 ### Environment quirks
-- Dev machine has **Python 3.9.6** (Xcode default). pyproject.toml says 3.11+ but tests pass on 3.9 because we avoided walrus operators in the tested code. `config.py` uses `:=` syntax — if you're on 3.9, it still works since it's in a non-tested path.
-- **Node.js is NOT installed**. Run `brew install node@20` before touching osm-ui.
+- Dev machine has **Python 3.9.6** (Xcode default). Tests pass on 3.9.
 - **macOS HFP sink mode is probably disabled**. Run `scripts/enable-hfp-sink.sh` and reboot before Bluetooth testing.
 - Unix socket tests use `/tmp/osm_test_*.sock` (not `tmp_path`) because macOS AF_UNIX has a 104-char path limit.
 
 ### Gotchas discovered during development
 1. `IOBluetoothHandsFreeIndicatorBattChg` — NOT `Battery` or `BatteryCharge`. Found by grepping SDK headers.
-2. Delegate methods take `IOBluetoothHandsFree!` (base class), not `IOBluetoothHandsFreeDevice!`. Mismatching the type silently fails — the delegate never fires.
+2. Delegate methods take `IOBluetoothHandsFree!` (base class), not `IOBluetoothHandsFreeDevice!`. Mismatching the type silently fails.
 3. `sendATCommand` was renamed to `send(atCommand:)` in a recent SDK.
-4. Swift 6 enforces memory exclusivity — `sockaddr_un.sun_path` can't be written via the old `withUnsafeMutablePointer` pattern. Must use `withUnsafeMutableBytes`.
-5. `websockets` 14.x deprecated `WebSocketServerProtocol` — tests pass but emit warnings. Future work: migrate to the new API.
+4. Swift 6 enforces memory exclusivity — `sockaddr_un.sun_path` needs `withUnsafeMutableBytes`.
+5. `websockets` 14.x deprecated `WebSocketServerProtocol` — tests pass but emit warnings.
+6. **VAD interface mismatch** (fixed): Pipeline needs streaming `process()` method, not just batch `is_speech()`. Added in fix pass.
+7. **WS broadcast_sync** (fixed): Pipeline calls sync `broadcast_sync()` from sync methods. Added fire-and-forget wrapper using `loop.create_task()`.
+8. **SMS handler broadcast signature** (fixed): Was passing single dict, now uses `(event_type, data)` two-arg call.
+9. **OpenAI client requires API key even for tests**: Use `"sk-placeholder"` as fallback to avoid init errors.
+10. **store.py was at wrong path** (fixed): Moved to `sms/conversation.py` per spec, kept re-export shim.
 
 ### What to tackle next (priority order)
-1. **UI-001.1**: Bootstrap Next.js (`npx create-next-app@latest osm-ui --typescript --tailwind --app --src-dir=false`), then `npx shadcn@latest init`
-2. **PY-001.12**: Conversation store (SQLite) — no dependencies, fully testable standalone
-3. **PY-001.7 + PY-001.8**: VAD and resampler — also standalone, easy to test
-4. **PY-001.4**: LLM engine — needs an API key but can mock in tests
-5. **BT-001.5**: SCOAudioBridge — the hard one. Needs CoreAudio AudioUnit research.
+1. **Real Bluetooth testing**: Pair a phone, verify HFP connection and call control work
+2. **BT-001.5 SCOAudioBridge**: Implement CoreAudio AudioUnit capture/injection
+3. **PY-001.10**: OpenAI Realtime API fast path
+4. **Real STT/TTS**: Replace local stubs with lightning-whisper-mlx and mlx-audio
+5. **Provider hot-switching**: Implement `update_settings` handler in main.py
 
 ---
 
@@ -98,7 +104,7 @@
 | PY-001.10 | Realtime API | NOT_STARTED | PY-001.1, PY-001.2 | | | OpenAI Realtime fast path |
 | PY-001.11 | SMS Handler | COMPLETE | PY-001.2, PY-001.4 | Antigravity | Antigravity | Orchestrator linking store, LLM, BT. verified 4/4 tests |
 | PY-001.12 | Conversation Store | COMPLETE | None | Antigravity | Antigravity | SQLite history completed, passed 5/5 tests |
-| PY-001.13 | Main entry (Python) | NOT_STARTED | All PY-001.* | | | Starts all services |
+| PY-001.13 | Main entry (Python) | COMPLETE | All PY-001.* | Claude Opus 4.6 | Claude Opus 4.6 | Full wiring: BT events->WS, WS actions->BT, pipeline+SMS handler instantiated |
 
 ### UI-001: osm-ui (Next.js Frontend)
 
@@ -173,3 +179,15 @@ _Record significant architectural decisions, changes, or discoveries here._
 | 2026-04-09 | BT-001.4 | Fixed delegate method signatures to use `IOBluetoothHandsFree!` | Protocol requires base class type, not `IOBluetoothHandsFreeDevice!` | Claude Opus 4.6 |
 | 2026-04-09 | BT-001.4 | Fixed `sendATCommand` -> `send(atCommand:)` | Renamed in recent SDK | Claude Opus 4.6 |
 | 2026-04-09 | BT-001.2 | Fixed `sockaddr_un.sun_path` overlapping access | Swift 6 exclusivity enforcement | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.7 | Added streaming `process()` method to SimpleVAD | Pipeline needs per-frame VAD, not batch-only | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.3 | Added `broadcast_sync()` to WSServer | Pipeline calls sync broadcast from sync methods | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.9 | Fixed `broadcast_sync` call signature to `(event_type, data)` | Was passing single dict, mismatched WSServer API | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.9 | Changed `bt_bridge.inject_audio` to `bt_bridge.send_command("inject_audio")` | inject_audio is not a method on BTBridge | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.11 | Fixed handler signature to `(event_id, payload)` + broadcast 2-arg call | Matched bt_bridge handler signature and WSServer API | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.11 | Fixed `self.self_llm_generate` typo -> `self.llm_engine.generate` | Typo causing AttributeError | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.4 | Added separate LocalLLMEngine class | "local" provider was aliased to OpenAI, now has distinct class | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.5 | Replaced mock STT with real OpenAI Whisper API implementation | Was returning hardcoded "mock local transcription" | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.6 | Replaced mock TTS with real OpenAI/ElevenLabs API implementations | Was returning fake bytes, not valid PCM | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.12 | Moved store.py -> sms/conversation.py per spec | ARCHITECTURE.md specifies sms/conversation.py location | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.13 | Wired main.py with full component integration | Was skeleton with `pass` stubs, now fully operational | Claude Opus 4.6 |
+| 2026-04-09 | UI-001.4 | Fixed pairing test selectors to match actual UI text | Test said "Scan Devices" but button says "Scan" | Claude Opus 4.6 |

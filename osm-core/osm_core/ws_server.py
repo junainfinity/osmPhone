@@ -44,13 +44,30 @@ class WSServer:
         self._action_handlers.setdefault(action, []).append(handler)
 
     async def broadcast(self, event_type: str, data: dict[str, Any] | None = None) -> None:
-        """Send an event to all connected frontend clients."""
+        """Send an event to all connected frontend clients (async version)."""
         message = json.dumps({"type": event_type, "data": data or {}})
         if self._clients:
             await asyncio.gather(
                 *[self._send_safe(client, message) for client in self._clients],
                 return_exceptions=True,
             )
+
+    def broadcast_sync(self, event_type: str, data: dict[str, Any] | None = None) -> None:
+        """Fire-and-forget broadcast from sync code (e.g., AudioPipeline state changes).
+
+        Schedules the async broadcast on the running event loop. Safe to call from
+        synchronous methods that run inside an async context (like pipeline.start_call).
+
+        FIX LOG (Claude Opus 4.6, 2026-04-09):
+          Added this method — AudioPipeline calls broadcast_sync() from sync methods
+          like start_call() and end_call(). Without this, AttributeError at runtime.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.broadcast(event_type, data))
+        except RuntimeError:
+            # No running loop — log and skip (happens in tests or shutdown)
+            logger.warning("broadcast_sync: no running event loop, skipping broadcast")
 
     async def _send_safe(self, client: WebSocketServerProtocol, message: str) -> None:
         try:
