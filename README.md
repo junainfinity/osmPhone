@@ -276,7 +276,7 @@ osmPhone/
 - [x] Next.js dialer interface
 - [x] Real-time call transcript view
 - [ ] Message thread interface
-- [ ] Settings and provider switching
+- [x] Settings and provider switching
 
 ### Phase 5 — Polish
 - [ ] Multi-provider hot-switching
