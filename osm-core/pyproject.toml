@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "osm-core"
+version = "0.1.0"
+description = "osmPhone Python backend - LLM/STT/TTS orchestration for Bluetooth phone bridge"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.0",
+    "elevenlabs>=1.0",
+    "websockets>=14.0",
+    "pyyaml>=6.0",
+    "numpy>=1.24",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+local = [
+    "mlx-lm",
+    "lightning-whisper-mlx",
+    "mlx-audio",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+all = ["osm-core[local,dev]"]
+
+[project.scripts]
+osm-core = "osm_core.main:main"
+
+[tool.setuptools.packages.find]
+include = ["osm_core*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

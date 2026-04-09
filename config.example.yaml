@@ -1,0 +1,86 @@
+# osmPhone Configuration
+# Copy to config.yaml and fill in your values
+
+bluetooth:
+  # Bluetooth device address to auto-connect (leave empty for manual pairing)
+  device_address: ""
+  # Automatically connect on startup if device_address is set
+  auto_connect: false
+  # Automatically answer incoming calls
+  auto_answer: false
+  # Socket path for IPC between osm-bt and osm-core
+  socket_path: "/tmp/osmphone.sock"
+
+llm:
+  # Provider: "openai" | "osmapi" | "local"
+  # "openai" and "osmapi" both use the openai SDK, osmapi just sets a custom base_url
+  provider: "openai"
+  # Model name (e.g., "gpt-4o", "gpt-4o-mini", or local model path)
+  model: "gpt-4o-mini"
+  # API key (for openai/osmapi providers)
+  api_key: ""
+  # Base URL override (required for osmapi, optional for openai)
+  # Example osmAPI: "https://your-osmapi-endpoint.com/v1"
+  base_url: ""
+  # System prompt for the AI assistant
+  system_prompt: |
+    You are a helpful phone assistant. You handle text messages and phone calls
+    on behalf of the user. Be concise and natural in your responses.
+    For texts, match the tone of the conversation.
+    For calls, speak naturally as if you are the user's assistant.
+  # Max tokens for LLM response
+  max_tokens: 256
+  # Temperature (0.0 - 2.0)
+  temperature: 0.7
+
+stt:
+  # Provider: "local" | "openai"
+  # "local" uses lightning-whisper-mlx (Apple Silicon only)
+  provider: "local"
+  # Model for local STT (e.g., "distil-large-v3", "large-v3", "base")
+  model: "distil-large-v3"
+  # Language hint (ISO 639-1 code)
+  language: "en"
+
+tts:
+  # Provider: "local" | "openai" | "elevenlabs"
+  provider: "openai"
+  # Voice name/ID
+  # OpenAI: "alloy", "echo", "fable", "onyx", "nova", "shimmer"
+  # ElevenLabs: voice_id from your ElevenLabs account
+  # Local: model-dependent
+  voice: "nova"
+  # ElevenLabs API key (only needed if provider is "elevenlabs")
+  elevenlabs_api_key: ""
+  # Speed multiplier (0.7 - 1.2 for ElevenLabs, 0.25 - 4.0 for OpenAI)
+  speed: 1.0
+
+voice_mode:
+  # Default mode: "autonomous" | "hitl" (human-in-the-loop)
+  # autonomous: LLM auto-answers and converses without intervention
+  # hitl: shows transcript, user approves each response before TTS
+  default: "hitl"
+
+audio:
+  # SCO audio sample rate (8000 for CVSD, 16000 for mSBC)
+  sco_sample_rate: 8000
+  # VAD (Voice Activity Detection) settings
+  vad_threshold: 0.5
+  # Minimum speech duration in ms to trigger STT
+  min_speech_duration_ms: 250
+  # Silence duration in ms to consider speech ended
+  silence_duration_ms: 700
+  # Play comfort tone while processing (reduces awkward silence)
+  comfort_noise: true
+
+realtime:
+  # Use OpenAI Realtime API as fast path for voice calls
+  # When enabled, bypasses separate STT/LLM/TTS pipeline
+  enabled: false
+  # Model for realtime (e.g., "gpt-4o-realtime-preview")
+  model: "gpt-4o-realtime-preview"
+
+server:
+  # WebSocket port for frontend communication
+  ws_host: "localhost"
+  ws_port: 8765

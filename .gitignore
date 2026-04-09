@@ -1,0 +1,46 @@
+# macOS
+.DS_Store
+
+# Swift
+.build/
+.swiftpm/
+*.xcodeproj
+xcuserdata/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+
+# Config with secrets
+config.yaml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# pytest
+.pytest_cache/
+
+# SQLite databases
+*.db
+*.sqlite
+
+# Socket
+/tmp/osmphone.sock
+
+# OS
+Thumbs.db
