@@ -222,7 +222,7 @@ osmPhone is designed for **parallel development by multiple AI agents or human d
 
 ```bash
 make test          # all tests
-make test-bt       # Swift (9 tests — protocol encoding)
+make test-bt       # Swift (9 tests — protocol encoding, IPC payloads)
 make test-core     # Python (66 tests — config, bridge, WS, LLM, STT, TTS, VAD, pipeline, realtime, SMS, store)
 make test-ui       # Next.js (31 tests — WS provider, dialer, calls, messages, settings)
 ```
@@ -238,7 +238,7 @@ osmPhone/
 ├── Makefile                 # Build orchestration
 ├── osm-bt/                  # Swift — Bluetooth HFP helper
 │   ├── Package.swift
-│   ├── Sources/OsmBT/       # 7 source files
+│   ├── Sources/OsmBT/       # 10 source files (Protocol, Socket, BT Manager, HFP, RFCOMM HFP, SMS, SCO, HCI, main)
 │   └── Tests/OsmBTTests/    # Protocol unit tests
 ├── osm-core/                # Python — AI backend
 │   ├── pyproject.toml
@@ -263,11 +263,16 @@ osmPhone/
 - [x] Full documentation and test plan
 
 ### Phase 2 — Bluetooth & SMS (in progress)
-- [x] Real device pairing and HFP connection (verified with iPhone 17 Pro — pairs, HFP connects with battery/signal, SLC stability WIP)
+- [x] Real device pairing and HFP connection (verified with iPhone 17 Pro)
+- [x] Raw RFCOMM HFP controller with full AT command state machine
+- [x] SDP service registration (HSP Headset + HFP Hands-Free)
+- [x] Auto-reconnect with exponential backoff (Phone Amego-style patience)
+- [x] HCI device class manipulation (Write/Read via private IOBluetooth API)
 - [x] SMS send/receive orchestration (Python layer)
 - [x] LLM-powered auto-reply for texts
 - [x] Conversation history (SQLite)
 - [x] Full main.py wiring (BT events -> WS, WS actions -> BT commands)
+- [ ] Stable HFP SLC with iPhone (see Known Limitations)
 
 ### Phase 3 — Voice Calls (in progress)
 - [ ] SCO audio capture via CoreAudio
@@ -306,13 +311,19 @@ When your Mac registers as an HFP "Hands-Free" device, the phone sees it exactly
 | Mac sends audio back to caller | PCM injection into SCO output |
 | Mac receives/sends SMS | AT+CMGS / AT+CMGR commands via HFP |
 
-The key macOS API is `IOBluetoothHandsFreeDevice` (available since macOS 10.7). osmPhone wraps this in a clean Swift interface with JSON IPC, making the Bluetooth layer accessible from Python.
+osmPhone implements two HFP approaches:
+
+1. **`IOBluetoothHandsFreeDevice`** (Apple framework) — high-level wrapper, handles AT commands internally as a black box
+2. **`RFCOMMHandsFreeController`** (custom) — raw RFCOMM with manual AT command state machine, SDP service registration, and full protocol control
+
+The custom RFCOMM approach was developed after discovering that `IOBluetoothHandsFreeDevice.connect()` silently fails with iPhones due to device class filtering. The raw RFCOMM controller successfully opens channels to the iPhone's Handsfree Gateway service and implements the full HFP 1.8 SLC negotiation sequence.
 
 ---
 
 ## Known Limitations
 
-- **macOS 12+ disables HFP sink mode by default** — must run `scripts/enable-hfp-sink.sh` and reboot
+- **iPhone HFP device class filtering** — iPhones refuse to activate HFP AG for devices with Computer class (`0x7995916`). The Mac's device class cannot be changed programmatically (HCI commands return success but the BT stack resets it). This is the primary blocker for Mac-iPhone HFP. Phone Amego (sustworks.com) solves this somehow — investigating their approach. Alternative paths: Raspberry Pi + BlueZ bridge, or A2DP audio sink.
+- **RFCOMM transport works, HFP application layer silent** — We can open RFCOMM channel 8 (Handsfree Gateway) to iPhone, write AT commands successfully, but iPhone's HFP AG doesn't respond. Related to device class issue above.
 - **SMS over HFP limited to 160 characters** — some phones silently truncate
 - **SMS compatibility varies by phone model** — HFP AT commands are standard but not every AG implements them identically
 - **SCO audio is 8kHz CVSD** (phone-quality) — this is a Bluetooth limitation, not ours

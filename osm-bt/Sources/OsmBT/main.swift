@@ -25,12 +25,23 @@ import os.log
 
 let btLog = OSLog(subsystem: "com.osmphone.bt", category: "general")
 
+// File logger — writes to /tmp/osmbt.log so we can see output when launched via `open`
+let logFile = fopen("/tmp/osmbt.log", "w")
+func btPrint(_ msg: String) {
+    let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(msg)\n"
+    print(msg)
+    if let f = logFile {
+        fputs(line, f)
+        fflush(f)
+    }
+}
+
 /// osmPhone Bluetooth Helper
 /// Runs as a daemon, exposing Bluetooth HFP functionality over a Unix domain socket.
 /// Protocol: JSON-over-newline on /tmp/osmphone.sock
 
 os_log("=== osm-bt starting ===", log: btLog, type: .default)
-print("=== osm-bt: osmPhone Bluetooth Helper ===")
+btPrint("=== osm-bt: osmPhone Bluetooth Helper ===")
 
 // MARK: - App Coordinator
 
@@ -38,13 +49,18 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
     let socketServer: SocketServer
     let bluetoothManager: BluetoothManager
     let handsFreeController: HandsFreeController
+    let rfcommHFP: RFCOMMHandsFreeController
     let smsController: SMSController
     let audioBridge: SCOAudioBridge
+
+    // Toggle between RFCOMM (raw) and IOBluetooth (framework) HFP controllers
+    let useRFCOMM = true  // Try IOBluetooth again with fresh pairing
 
     override init() {
         socketServer = SocketServer()
         bluetoothManager = BluetoothManager()
         handsFreeController = HandsFreeController()
+        rfcommHFP = RFCOMMHandsFreeController()
         smsController = SMSController(controller: handsFreeController)
         audioBridge = SCOAudioBridge()
 
@@ -53,6 +69,7 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
         socketServer.delegate = self
         bluetoothManager.delegate = self
         handsFreeController.delegate = self
+        rfcommHFP.delegate = self
 
         audioBridge.onAudioCaptured = { [weak self] data, sampleRate in
             self?.handleCapturedAudio(data: data, sampleRate: sampleRate)
@@ -61,6 +78,18 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
 
     func start() throws {
         try socketServer.start()
+
+        // Try to set device class to Audio/Headset
+        btPrint("[App] Attempting to set Bluetooth device class to Audio/Headset...")
+        let classChanged = trySetAudioDeviceClass()
+        btPrint("[App] Device class change: \(classChanged ? "SUCCESS" : "FAILED (will try anyway)")")
+
+        // Start RFCOMM HFP advertising (makes Mac visible as a headset)
+        if useRFCOMM {
+            btPrint("[App] Starting RFCOMM-based HFP (Mac advertises as headset)...")
+            let ok = rfcommHFP.startAdvertising()
+            btPrint("[App] RFCOMM HFP advertising: \(ok ? "ACTIVE" : "FAILED")")
+        }
 
         // List already-paired devices at startup
         if let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] {
@@ -119,45 +148,51 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
 
         case .connectHFP:
             if let address = payload["address"] as? String {
-                print("[App] connect_hfp requested for \(address)")
-                if let device = bluetoothManager.pairedDevice(address: address) {
-                    print("[App] Device found and paired, connecting HFP...")
-                    handsFreeController.connect(device: device)
+                btPrint("[App] connect_hfp requested for \(address) (mode: \(useRFCOMM ? "RFCOMM" : "IOBluetooth"))")
+
+                // Find the device
+                let device: IOBluetoothDevice?
+                if let d = bluetoothManager.pairedDevice(address: address) {
+                    btPrint("[App] Device via pairedDevice(): name=\(d.name ?? "?"), paired=\(d.isPaired()), connected=\(d.isConnected())")
+                    device = d
+                } else if let d = IOBluetoothDevice(addressString: address) {
+                    btPrint("[App] Device via direct lookup: name=\(d.name ?? "?"), paired=\(d.isPaired()), connected=\(d.isConnected())")
+                    device = d
                 } else {
-                    print("[App] Device NOT found or NOT paired at \(address), trying direct lookup...")
-                    // Try direct IOBluetoothDevice lookup without isPaired check
-                    if let device = IOBluetoothDevice(addressString: address) {
-                        print("[App] Direct lookup found device: \(device.name ?? "?"), paired=\(device.isPaired())")
-                        if !device.isPaired() {
-                            print("[App] Attempting HFP anyway despite isPaired=false...")
-                        }
-                        handsFreeController.connect(device: device)
+                    btPrint("[App] Device not found at \(address)")
+                    let errPayload = ErrorPayload(code: "DEVICE_NOT_FOUND", message: "No device at \(address)")
+                    if let data = try? EventBuilder.build(type: .error, payload: errPayload) {
+                        socketServer.sendEvent(data)
+                    }
+                    device = nil
+                }
+
+                if let device = device {
+                    if useRFCOMM {
+                        // RFCOMM mode: Mac advertises as headset, iPhone connects to us
+                        // The connect() call opens ACL to prompt iPhone's service discovery
+                        rfcommHFP.connect(device: device)
                     } else {
-                        print("[App] IOBluetoothDevice(addressString:) returned nil for \(address)")
-                        let errPayload = ErrorPayload(code: "DEVICE_NOT_FOUND", message: "No device at \(address)")
-                        if let data = try? EventBuilder.build(type: .error, payload: errPayload) {
-                            socketServer.sendEvent(data)
-                        }
+                        handsFreeController.connect(device: device)
                     }
                 }
             }
 
         case .disconnectHFP:
-            handsFreeController.disconnect()
+            if useRFCOMM { rfcommHFP.disconnect() } else { handsFreeController.disconnect() }
 
         case .answerCall:
-            handsFreeController.answerCall()
-            handsFreeController.transferAudioToComputer()
+            if useRFCOMM { rfcommHFP.answerCall() } else { handsFreeController.answerCall(); handsFreeController.transferAudioToComputer() }
 
         case .rejectCall:
-            handsFreeController.rejectCall()
+            if useRFCOMM { rfcommHFP.rejectCall() } else { handsFreeController.rejectCall() }
 
         case .endCall:
-            handsFreeController.endCall()
+            if useRFCOMM { rfcommHFP.endCall() } else { handsFreeController.endCall() }
 
         case .dial:
             if let number = payload["number"] as? String {
-                handsFreeController.dial(number: number)
+                if useRFCOMM { rfcommHFP.dial(number: number) } else { handsFreeController.dial(number: number) }
             }
 
         case .sendSMS:
@@ -266,70 +301,70 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
 
     // MARK: - HandsFreeControllerDelegate
 
-    func handsFreeDidConnect(_ controller: HandsFreeController, signal: Int, battery: Int) {
+    func handsFreeDidConnect(_ controller: AnyObject, signal: Int, battery: Int) {
         let payload = HFPConnectedPayload(address: "", signal: signal, battery: battery, service: true)
         if let data = try? EventBuilder.build(type: .hfpConnected, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeDidDisconnect(_ controller: HandsFreeController, reason: String) {
+    func handsFreeDidDisconnect(_ controller: AnyObject, reason: String) {
         let payload: [String: String] = ["reason": reason]
         if let data = try? EventBuilder.build(type: .hfpDisconnected, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeIncomingCall(_ controller: HandsFreeController, from: String, name: String?) {
+    func handsFreeIncomingCall(_ controller: AnyObject, from: String, name: String?) {
         let payload = IncomingCallPayload(from: from, name: name)
         if let data = try? EventBuilder.build(type: .incomingCall, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeCallActive(_ controller: HandsFreeController, from: String) {
+    func handsFreeCallActive(_ controller: AnyObject, from: String) {
         let payload: [String: String] = ["from": from]
         if let data = try? EventBuilder.build(type: .callActive, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeCallEnded(_ controller: HandsFreeController, reason: String) {
+    func handsFreeCallEnded(_ controller: AnyObject, reason: String) {
         let payload = CallEndedPayload(reason: reason)
         if let data = try? EventBuilder.build(type: .callEnded, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeIncomingSMS(_ controller: HandsFreeController, from: String, body: String, timestamp: String) {
+    func handsFreeIncomingSMS(_ controller: AnyObject, from: String, body: String, timestamp: String) {
         let payload = SMSReceivedPayload(from: from, body: body, timestamp: timestamp)
         if let data = try? EventBuilder.build(type: .smsReceived, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeSignalUpdate(_ controller: HandsFreeController, level: Int) {
+    func handsFreeSignalUpdate(_ controller: AnyObject, level: Int) {
         let payload: [String: Int] = ["level": level]
         if let data = try? EventBuilder.build(type: .signalUpdate, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeBatteryUpdate(_ controller: HandsFreeController, level: Int) {
+    func handsFreeBatteryUpdate(_ controller: AnyObject, level: Int) {
         let payload: [String: Int] = ["level": level]
         if let data = try? EventBuilder.build(type: .batteryUpdate, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFreeError(_ controller: HandsFreeController, code: String, message: String) {
+    func handsFreeError(_ controller: AnyObject, code: String, message: String) {
         let payload = ErrorPayload(code: code, message: message)
         if let data = try? EventBuilder.build(type: .error, payload: payload) {
             socketServer.sendEvent(data)
         }
     }
 
-    func handsFree(_ controller: HandsFreeController, scoOpened codec: String, sampleRate: Int) {
+    func handsFree(_ controller: AnyObject, scoOpened codec: String, sampleRate: Int) {
         let payload = SCOOpenedPayload(codec: codec, sampleRate: sampleRate)
         if let data = try? EventBuilder.build(type: .scoOpened, payload: payload) {
             socketServer.sendEvent(data)
@@ -337,11 +372,33 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
         audioBridge.startCapture(sampleRate: sampleRate)
     }
 
-    func handsFree(_ controller: HandsFreeController, scoClosed: Bool) {
+    func handsFree(_ controller: AnyObject, scoClosed: Bool) {
         if let data = try? EventBuilder.build(type: .scoClosed, payload: [String: String]()) {
             socketServer.sendEvent(data)
         }
         audioBridge.stopCapture()
+    }
+
+    func handsFreeATLog(_ controller: AnyObject, direction: String, command: String) {
+        let payload = ATLogPayload(
+            direction: direction,
+            command: command,
+            timestamp: ISO8601DateFormatter().string(from: Date())
+        )
+        if let data = try? EventBuilder.build(type: .atLog, payload: payload) {
+            socketServer.sendEvent(data)
+        }
+    }
+
+    func handsFreeReconnecting(_ controller: AnyObject, attempt: Int, maxAttempts: Int) {
+        let payload = HFPReconnectingPayload(
+            address: "",
+            attempt: attempt,
+            maxAttempts: maxAttempts
+        )
+        if let data = try? EventBuilder.build(type: .hfpReconnecting, payload: payload) {
+            socketServer.sendEvent(data)
+        }
     }
 }
 

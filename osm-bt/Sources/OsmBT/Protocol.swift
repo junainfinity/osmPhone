@@ -48,6 +48,8 @@ enum EventType: String, Codable {
     case signalUpdate = "signal_update"
     case batteryUpdate = "battery_update"
     case error = "error"
+    case atLog = "at_log"
+    case hfpReconnecting = "hfp_reconnecting"
 }
 
 // MARK: - Commands (osm-core -> osm-bt)
@@ -126,6 +128,18 @@ struct SMSReceivedPayload: Codable {
 struct ErrorPayload: Codable {
     let code: String
     let message: String
+}
+
+struct ATLogPayload: Codable {
+    let direction: String  // "HF->AG" or "AG->HF"
+    let command: String
+    let timestamp: String
+}
+
+struct HFPReconnectingPayload: Codable {
+    let address: String
+    let attempt: Int
+    let maxAttempts: Int
 }
 
 // MARK: - Command Payloads
