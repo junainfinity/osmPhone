@@ -218,8 +218,8 @@ osmPhone is designed for **parallel development by multiple AI agents or human d
 ```bash
 make test          # all tests
 make test-bt       # Swift (9 tests — protocol encoding)
-make test-core     # Python (20 tests — config, socket bridge, WebSocket)
-make test-ui       # Next.js (not yet implemented)
+make test-core     # Python (56 tests — config, bridge, WS, LLM, STT, TTS, VAD, pipeline, SMS, store)
+make test-ui       # Next.js (31 tests — WS provider, dialer, calls, messages, settings)
 ```
 
 ### Project Structure
@@ -262,21 +262,25 @@ osmPhone/
 - [x] SMS send/receive orchestration (Python layer)
 - [x] LLM-powered auto-reply for texts
 - [x] Conversation history (SQLite)
+- [x] Full main.py wiring (BT events -> WS, WS actions -> BT commands)
 
 ### Phase 3 — Voice Calls
 - [ ] SCO audio capture via CoreAudio
-- [x] Voice activity detection (VAD)
-- [x] STT → LLM → TTS pipeline engine implementation
+- [x] Voice activity detection (VAD) with streaming + batch modes
+- [x] STT engine (OpenAI Whisper API + local stub)
+- [x] TTS engine (OpenAI + ElevenLabs + local stub)
+- [x] STT → LLM → TTS audio pipeline with HITL support
 - [x] Audio resampling engine
 - [ ] Audio injection back into SCO channel
 - [ ] OpenAI Realtime API fast path
 
-### Phase 4 — Web UI
+### Phase 4 — Web UI ✅
 - [x] Next.js + shadcn framework bootstrap
 - [x] Next.js dialer interface
 - [x] Real-time call transcript view
 - [x] Message thread interface
 - [x] Settings and provider switching
+- [x] 31/31 UI tests passing
 
 ### Phase 5 — Polish
 - [ ] Multi-provider hot-switching
