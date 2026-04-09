@@ -94,7 +94,7 @@
 | PY-001.6 | TTS Engine | COMPLETE | PY-001.1 | Antigravity | Antigravity | OpenAI/ElevenLabs wrapper implemented, verified 4/4 tests |
 | PY-001.7 | VAD | COMPLETE | None | Antigravity | Antigravity | Simple energy-based VAD implemented, verified 4/4 tests |
 | PY-001.8 | Audio Resampler | COMPLETE | None | Antigravity | Antigravity | Linear interpolation resampler implemented, verified 4/4 tests |
-| PY-001.9 | Audio Pipeline | NOT_STARTED | PY-001.2, PY-001.4, PY-001.5, PY-001.6, PY-001.7, PY-001.8 | | | Real-time voice loop |
+| PY-001.9 | Audio Pipeline | COMPLETE | PY-001.2, PY-001.4, PY-001.5, PY-001.6, PY-001.7, PY-001.8 | Antigravity | Antigravity | Real-time orchestration mapping VAD->STT->LLM->TTS in autonomous and hitl states. All unit tests passed |
 | PY-001.10 | Realtime API | NOT_STARTED | PY-001.1, PY-001.2 | | | OpenAI Realtime fast path |
 | PY-001.11 | SMS Handler | COMPLETE | PY-001.2, PY-001.4 | Antigravity | Antigravity | Orchestrator linking store, LLM, BT. verified 4/4 tests |
 | PY-001.12 | Conversation Store | COMPLETE | None | Antigravity | Antigravity | SQLite history completed, passed 5/5 tests |
@@ -110,10 +110,10 @@
 | UI-001.4 | Device Pairing | COMPLETE | UI-001.2 | Antigravity | Antigravity | Settings page BT scanner with PIN pair modals |
 | UI-001.5 | Dialer | COMPLETE | UI-001.2 | Antigravity | Antigravity | T9 Root Keypad view with HFP dialer hooks |
 | UI-001.6 | Active Call | COMPLETE | UI-001.2, UI-001.5 | Antigravity | Antigravity | Global active call slide-up with real-time text logs & HITL controls |
-| UI-001.7 | Incoming Call | NOT_STARTED | UI-001.2 | | | Incoming call overlay |
-| UI-001.8 | Message Threads | NOT_STARTED | UI-001.2 | | | SMS thread list |
-| UI-001.9 | Message Thread | NOT_STARTED | UI-001.2 | | | Conversation view |
-| UI-001.10 | Settings | NOT_STARTED | UI-001.2 | | | Provider config |
+| UI-001.7 | Incoming Call | COMPLETE | UI-001.2 | Antigravity | Antigravity | Globa UI incoming call overlay and dispatch triggers |
+| UI-001.8 | Message Threads | COMPLETE | UI-001.2 | Antigravity | Antigravity | SMS thread list view built routing to individual contact spaces |
+| UI-001.9 | Message Thread | COMPLETE | UI-001.2 | Antigravity | Antigravity | Individual Conversation text bubble views w/ typing interceptors |
+| UI-001.10 | Settings | COMPLETE | UI-001.2 | Antigravity | Antigravity | Provider config logic and inputs bound natively to Next.js routes |
 
 ---
 

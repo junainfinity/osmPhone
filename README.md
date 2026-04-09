@@ -275,7 +275,7 @@ osmPhone/
 - [x] Next.js + shadcn framework bootstrap
 - [x] Next.js dialer interface
 - [x] Real-time call transcript view
-- [ ] Message thread interface
+- [x] Message thread interface
 - [x] Settings and provider switching
 
 ### Phase 5 — Polish
