@@ -273,8 +273,8 @@ osmPhone/
 
 ### Phase 4 — Web UI
 - [x] Next.js + shadcn framework bootstrap
-- [ ] Next.js dialer interface
-- [ ] Real-time call transcript view
+- [x] Next.js dialer interface
+- [x] Real-time call transcript view
 - [ ] Message thread interface
 - [ ] Settings and provider switching
 

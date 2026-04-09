@@ -105,11 +105,11 @@
 | ID | Component | Status | Dependencies | Developed By | Tested By | Notes |
 |----|-----------|--------|--------------|-------------|-----------|-------|
 | UI-001.1 | Project Setup | COMPLETE | IF-001.1 | Antigravity | Antigravity | Next.js app scaffolded, dependencies installed, shadcn inited |
-| UI-001.2 | WS Provider | NOT_STARTED | UI-001.1 | | | React context for WebSocket |
-| UI-001.3 | Layout & Nav | NOT_STARTED | UI-001.2 | | | Root layout, tabs, status |
-| UI-001.4 | Device Pairing | NOT_STARTED | UI-001.2 | | | Scan/pair/connect UI |
-| UI-001.5 | Dialer | NOT_STARTED | UI-001.2 | | | Keypad + call buttons |
-| UI-001.6 | Active Call | NOT_STARTED | UI-001.2, UI-001.5 | | | Transcript + HITL |
+| UI-001.2 | WS Provider | COMPLETE | UI-001.1 | Antigravity | Antigravity | React Context + hooks setup for backend WS sync. 4/4 tests pass. |
+| UI-001.3 | Layout & Nav | COMPLETE | UI-001.2 | Antigravity | Antigravity | Root layout, bottom tabs navigation, and dynamic connection status bars. 3/3 tests pass. |
+| UI-001.4 | Device Pairing | COMPLETE | UI-001.2 | Antigravity | Antigravity | Settings page BT scanner with PIN pair modals |
+| UI-001.5 | Dialer | COMPLETE | UI-001.2 | Antigravity | Antigravity | T9 Root Keypad view with HFP dialer hooks |
+| UI-001.6 | Active Call | COMPLETE | UI-001.2, UI-001.5 | Antigravity | Antigravity | Global active call slide-up with real-time text logs & HITL controls |
 | UI-001.7 | Incoming Call | NOT_STARTED | UI-001.2 | | | Incoming call overlay |
 | UI-001.8 | Message Threads | NOT_STARTED | UI-001.2 | | | SMS thread list |
 | UI-001.9 | Message Thread | NOT_STARTED | UI-001.2 | | | Conversation view |
