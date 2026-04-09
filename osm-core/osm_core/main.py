@@ -71,15 +71,25 @@ async def async_main() -> None:
     )
 
     # ---- Initialize pipeline and handler ----
-    pipeline = AudioPipeline(
-        llm_engine=llm_engine,
-        stt_engine=stt_engine,
-        tts_engine=tts_engine,
-        vad=vad,
-        bt_bridge=bt_bridge,
-        ws_server=ws_server,
-        mode=config.voice_mode.default,
-    )
+    if config.realtime.enabled:
+        from .audio.realtime import RealtimeAudioPipeline
+        pipeline = RealtimeAudioPipeline(
+            config=config,
+            bt_bridge=bt_bridge,
+            ws_server=ws_server,
+            mode=config.voice_mode.default,
+        )
+        logger.info("Using OpenAI Realtime pipeline (<300ms latency)")
+    else:
+        pipeline = AudioPipeline(
+            llm_engine=llm_engine,
+            stt_engine=stt_engine,
+            tts_engine=tts_engine,
+            vad=vad,
+            bt_bridge=bt_bridge,
+            ws_server=ws_server,
+            mode=config.voice_mode.default,
+        )
     sms_handler = SMSHandler(
         config=config,
         bridge=bt_bridge,
@@ -220,6 +230,8 @@ async def async_main() -> None:
     logger.info("  STT: %s", config.stt.provider)
     logger.info("  TTS: %s", config.tts.provider)
     logger.info("  Voice mode: %s", config.voice_mode.default)
+    if config.realtime.enabled:
+        logger.info("  Realtime: %s (voice=%s)", config.realtime.model, config.realtime.voice)
 
     # Run BT bridge listener (blocks until disconnect/shutdown)
     try:

@@ -82,6 +82,8 @@ class AudioConfig:
 class RealtimeConfig:
     enabled: bool = False
     model: str = "gpt-4o-realtime-preview"
+    voice: str = "alloy"  # alloy | echo | shimmer | ash | ballad | coral | sage | verse
+    turn_detection: str = "server_vad"  # server_vad | manual
 
 
 @dataclass

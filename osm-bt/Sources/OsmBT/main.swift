@@ -21,11 +21,15 @@
 
 import Foundation
 import IOBluetooth
+import os.log
+
+let btLog = OSLog(subsystem: "com.osmphone.bt", category: "general")
 
 /// osmPhone Bluetooth Helper
 /// Runs as a daemon, exposing Bluetooth HFP functionality over a Unix domain socket.
 /// Protocol: JSON-over-newline on /tmp/osmphone.sock
 
+os_log("=== osm-bt starting ===", log: btLog, type: .default)
 print("=== osm-bt: osmPhone Bluetooth Helper ===")
 
 // MARK: - App Coordinator
@@ -57,6 +61,17 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
 
     func start() throws {
         try socketServer.start()
+
+        // List already-paired devices at startup
+        if let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] {
+            print("[App] Found \(paired.count) paired device(s):")
+            for d in paired {
+                print("  - \(d.name ?? "?") (\(d.addressString ?? "?")) paired=\(d.isPaired())")
+            }
+        } else {
+            print("[App] No paired devices found")
+        }
+
         print("[App] Ready. Waiting for osm-core to connect...")
     }
 
@@ -85,6 +100,7 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
     func socketServer(_ server: SocketServer, didReceiveCommand id: String, type: CommandType, payload: [String: Any]) {
         switch type {
         case .scanStart:
+            print("[App] scan_start received")
             bluetoothManager.startScan()
 
         case .scanStop:
@@ -102,9 +118,28 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
             }
 
         case .connectHFP:
-            if let address = payload["address"] as? String,
-               let device = bluetoothManager.pairedDevice(address: address) {
-                handsFreeController.connect(device: device)
+            if let address = payload["address"] as? String {
+                print("[App] connect_hfp requested for \(address)")
+                if let device = bluetoothManager.pairedDevice(address: address) {
+                    print("[App] Device found and paired, connecting HFP...")
+                    handsFreeController.connect(device: device)
+                } else {
+                    print("[App] Device NOT found or NOT paired at \(address), trying direct lookup...")
+                    // Try direct IOBluetoothDevice lookup without isPaired check
+                    if let device = IOBluetoothDevice(addressString: address) {
+                        print("[App] Direct lookup found device: \(device.name ?? "?"), paired=\(device.isPaired())")
+                        if !device.isPaired() {
+                            print("[App] Attempting HFP anyway despite isPaired=false...")
+                        }
+                        handsFreeController.connect(device: device)
+                    } else {
+                        print("[App] IOBluetoothDevice(addressString:) returned nil for \(address)")
+                        let errPayload = ErrorPayload(code: "DEVICE_NOT_FOUND", message: "No device at \(address)")
+                        if let data = try? EventBuilder.build(type: .error, payload: errPayload) {
+                            socketServer.sendEvent(data)
+                        }
+                    }
+                }
             }
 
         case .disconnectHFP:
@@ -150,6 +185,37 @@ class AppCoordinator: NSObject, SocketServerDelegate, BluetoothManagerDelegate, 
         case .sendDTMF:
             if let digit = payload["digit"] as? String {
                 handsFreeController.sendDTMF(digit: digit)
+            }
+
+        case .unpair:
+            if let address = payload["address"] as? String {
+                if let device = IOBluetoothDevice(addressString: address) {
+                    let result = device.removeFromFavorites()
+                    print("[App] removeFromFavorites for \(address): \(result)")
+                    // Also try to close any open connections
+                    device.closeConnection()
+                    let payload = ["address": address, "result": "\(result)"]
+                    if let data = try? EventBuilder.build(type: .paired, payload: payload) {
+                        socketServer.sendEvent(data)
+                    }
+                }
+            }
+
+        case .listPaired:
+            if let paired = IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] {
+                for d in paired {
+                    let payload = DeviceFoundPayload(
+                        address: d.addressString ?? "?",
+                        name: d.name ?? "Unknown",
+                        rssi: Int(d.rawRSSI())
+                    )
+                    if let data = try? EventBuilder.build(type: .deviceFound, payload: payload) {
+                        socketServer.sendEvent(data)
+                    }
+                }
+            }
+            if let data = try? EventBuilder.build(type: .scanComplete, payload: [String: String]()) {
+                socketServer.sendEvent(data)
             }
         }
     }

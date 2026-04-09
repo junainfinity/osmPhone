@@ -1,48 +1,39 @@
 # osmPhone — Claude Session Context
 
-## RESUME POINT (after reboot on 2026-04-09)
+## RESUME POINT (2026-04-09, session 3)
 
-HFP sink mode was enabled via `defaults write` right before reboot. The next step is **Phase 2 completion: real Bluetooth hardware testing**.
+### Bluetooth status
 
-### What to do immediately
+HFP sink mode is ON. Real Bluetooth tested with iPhone 17 Pro:
+- **Scanning**: Works (finds iPhone, TV, other devices)
+- **Pairing**: Works but fragile — keys get out of sync if Mac BT name changes or devices are forgotten. Auto-confirm enabled in delegate callback.
+- **HFP connect**: Works — gets battery=5/5, signal=1/5, `hfp_connected` event fires. But **SLC drops after ~5 seconds**. `supportedFeatures` set to 0xFF (all features). Needs investigation.
+- **OsmBT runs as .app bundle** (`osm-bt/OsmBT.app`) with Info.plist for TCC Bluetooth permission. Do NOT run the binary directly — it will crash.
 
-1. **Verify HFP sink mode is active after reboot:**
-   ```bash
-   defaults read com.apple.BluetoothAudioAgent EnableBluetoothSinkMode
-   # Should return: 1
-   ```
+### What to do next
 
-2. **Ask the user to turn on Bluetooth on their phone** (iPhone or Android) and make it discoverable.
+1. **Fix HFP SLC stability** — the #1 blocker. iPhone disconnects after 5s. Investigate:
+   - AT command negotiation logs (add AT command logging)
+   - SDP service record (is HFP HF UUID 0x111E registered?)
+   - Feature negotiation mismatch (compare with what car stereos advertise)
+   - Try `IOBluetoothHandsFreeAudioGateway` as alternative approach
 
-3. **Start osm-bt and test real Bluetooth pairing:**
-   ```bash
-   cd /Users/arjun/Projects/osmPhone/osm-bt && swift run OsmBT
-   ```
-   Then from another terminal, connect with a Python test client to send scan_start and pair commands through the Unix socket. Or start the full stack with `make dev` and use the web UI to scan/pair.
+2. **BT-001.5 SCOAudioBridge** — implement CoreAudio capture/injection (blocked on stable HFP)
 
-4. **Test the full chain:**
-   - Device discovery (scan_start -> device_found events)
-   - Pairing (pair -> pair_confirm -> paired events)
-   - HFP connection (connect_hfp -> hfp_connected with signal/battery)
-   - SMS receive (send SMS to phone -> sms_received event)
-   - SMS send (send_sms command -> phone sends SMS)
-   - Incoming call (call phone -> incoming_call event)
-   - Answer call (answer_call -> call_active + sco_opened)
-
-5. **If pairing/HFP works**, move to Phase 3: SCO audio capture (BT-001.5).
+3. **End-to-end voice test** — once HFP + SCO work, test with Realtime API pipeline
 
 ### Project state
 
-- **96/96 tests passing** (9 Swift + 56 Python + 31 Next.js)
-- All code is committed and pushed to https://github.com/junainfinity/osmPhone
+- **106 tests passing** (9 Swift + 66 Python + 31 Next.js)
+- **PY-001.10 OpenAI Realtime API: COMPLETE** — `audio/realtime.py`, 10/10 tests, config-gated
+- All code committed and pushed to https://github.com/junainfinity/osmPhone
 - `config.yaml` has the user's ElevenLabs key (local only, gitignored)
-- TTS provider set to `elevenlabs` in config.yaml
-- **Never commit API keys to GitHub** — config.yaml is gitignored, config.example.yaml has empty placeholders
+- **Never commit API keys to GitHub** — config.yaml is gitignored
 
 ### Remaining work (by phase)
 
-**Phase 2 (1 item):** Real BT hardware test — pair phone, verify HFP connection
-**Phase 3 (3 items):** BT-001.5 SCO audio capture/inject, SCO audio injection, PY-001.10 OpenAI Realtime API
+**Phase 2 (1 item):** Fix HFP SLC stability (drops after 5s)
+**Phase 3 (2 items):** BT-001.5 SCO audio capture/inject, SCO audio injection
 **Phase 5 (4 items):** Provider hot-switching, local MLX inference, auto-answer greetings, call screening
 
 ### Key files

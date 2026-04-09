@@ -11,11 +11,13 @@ let package = Package(
             name: "OsmBT",
             dependencies: [],
             path: "Sources/OsmBT",
+            exclude: ["Info.plist"],
             linkerSettings: [
                 .linkedFramework("IOBluetooth"),
                 .linkedFramework("CoreBluetooth"),
                 .linkedFramework("CoreAudio"),
-                .linkedFramework("Foundation")
+                .linkedFramework("Foundation"),
+                .unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist", "-Xlinker", "Sources/OsmBT/Info.plist"])
             ]
         ),
         .testTarget(

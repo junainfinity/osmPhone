@@ -50,6 +50,13 @@ class HandsFreeController: NSObject {
 
     func connect(device: IOBluetoothDevice) {
         hfDevice = IOBluetoothHandsFreeDevice(device: device, delegate: self)
+
+        // Set HFP HF supported features per Apple Accessory Design Guidelines
+        // All features enabled: EC/NR, 3-way, CLI, voice rec, vol ctrl, enhanced call, codec neg
+        let features: UInt32 = 0xFF  // bits 0-7 all set
+        hfDevice?.supportedFeatures = features
+        print("[HFP] Set supported features: \(features)")
+
         hfDevice?.connect()
         connectedAddress = device.addressString
         print("[HFP] Connecting to \(device.addressString ?? "unknown")")
@@ -113,39 +120,42 @@ class HandsFreeController: NSObject {
 // MARK: - IOBluetoothHandsFreeDeviceDelegate
 
 extension HandsFreeController: IOBluetoothHandsFreeDeviceDelegate {
+    // Called when HFP Service Level Connection is complete
     func handsFree(_ device: IOBluetoothHandsFree!, connected status: NSNumber!) {
-        let isConnected = status?.boolValue ?? false
-        if isConnected {
-            let signal = Int(device.indicator(IOBluetoothHandsFreeIndicatorSignal))
-            let battery = Int(device.indicator(IOBluetoothHandsFreeIndicatorBattChg))
-            delegate?.handsFreeDidConnect(self, signal: signal, battery: battery)
-            print("[HFP] Connected (signal: \(signal), battery: \(battery))")
-        } else {
-            delegate?.handsFreeDidDisconnect(self, reason: "disconnected")
-            print("[HFP] Disconnected")
-        }
+        print("[HFP] SLC connected! status=\(status?.intValue ?? -1)")
+        let signal = Int(device.indicator(IOBluetoothHandsFreeIndicatorSignal))
+        let battery = Int(device.indicator(IOBluetoothHandsFreeIndicatorBattChg))
+        delegate?.handsFreeDidConnect(self, signal: signal, battery: battery)
+        print("[HFP] Connected (signal: \(signal), battery: \(battery))")
     }
 
-    func handsFree(_ device: IOBluetoothHandsFree!, incomingCallFrom number: NSNumber!) {
-        let from = number?.stringValue ?? "Unknown"
+    // Called when HFP Service Level Connection is disconnected
+    func handsFree(_ device: IOBluetoothHandsFree!, disconnected status: NSNumber!) {
+        print("[HFP] SLC disconnected, status=\(status?.intValue ?? -1)")
+        delegate?.handsFreeDidDisconnect(self, reason: "disconnected")
+    }
+
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, incomingCallFrom number: String!) {
+        let from = number ?? "Unknown"
         delegate?.handsFreeIncomingCall(self, from: from, name: nil)
         print("[HFP] Incoming call from \(from)")
     }
 
-    func handsFree(_ device: IOBluetoothHandsFree!, isCallActive status: NSNumber!) {
-        if status?.boolValue == true {
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, isCallActive: NSNumber!) {
+        if isCallActive?.boolValue == true {
             delegate?.handsFreeCallActive(self, from: connectedAddress ?? "")
         }
     }
 
-    func handsFree(_ device: IOBluetoothHandsFree!, callSetupMode mode: NSNumber!) {
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, callSetupMode: NSNumber!) {
         // 0 = no call setup, 1 = incoming, 2 = outgoing dialing, 3 = outgoing ringing
-        if mode?.intValue == 0 {
+        print("[HFP] Call setup mode: \(callSetupMode?.intValue ?? -1)")
+        if callSetupMode?.intValue == 0 {
             delegate?.handsFreeCallEnded(self, reason: "remote_hangup")
         }
     }
 
-    func handsFree(_ device: IOBluetoothHandsFree!, incomingSMS sms: [AnyHashable: Any]!) {
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, incomingSMS sms: [AnyHashable: Any]!) {
         guard let sms = sms else { return }
         let from = sms["PhoneNumber"] as? String ?? "Unknown"
         let body = sms["Content"] as? String ?? ""
@@ -154,24 +164,33 @@ extension HandsFreeController: IOBluetoothHandsFreeDeviceDelegate {
         print("[HFP] SMS from \(from): \(body.prefix(50))")
     }
 
-    func handsFree(_ device: IOBluetoothHandsFree!, signalStrength level: NSNumber!) {
-        let signal = level?.intValue ?? 0
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, signalStrength: NSNumber!) {
+        let signal = signalStrength?.intValue ?? 0
         delegate?.handsFreeSignalUpdate(self, level: signal)
     }
 
-    func handsFree(_ device: IOBluetoothHandsFree!, batteryCharge level: NSNumber!) {
-        let battery = level?.intValue ?? 0
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, batteryCharge: NSNumber!) {
+        let battery = batteryCharge?.intValue ?? 0
         delegate?.handsFreeBatteryUpdate(self, level: battery)
     }
 
     func handsFree(_ device: IOBluetoothHandsFree!, scoConnectionOpened status: NSNumber!) {
-        // SCO channel opened - voice audio is now flowing
         delegate?.handsFree(self, scoOpened: "CVSD", sampleRate: 8000)
-        print("[HFP] SCO audio channel opened")
+        print("[HFP] SCO audio channel opened (base)")
+    }
+
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, scoConnectionOpened status: NSNumber!) {
+        delegate?.handsFree(self, scoOpened: "CVSD", sampleRate: 8000)
+        print("[HFP] SCO audio channel opened (device)")
     }
 
     func handsFree(_ device: IOBluetoothHandsFree!, scoConnectionClosed status: NSNumber!) {
         delegate?.handsFree(self, scoClosed: true)
-        print("[HFP] SCO audio channel closed")
+        print("[HFP] SCO audio channel closed (base)")
+    }
+
+    func handsFree(_ device: IOBluetoothHandsFreeDevice!, scoConnectionClosed status: NSNumber!) {
+        delegate?.handsFree(self, scoClosed: true)
+        print("[HFP] SCO audio channel closed (device)")
     }
 }

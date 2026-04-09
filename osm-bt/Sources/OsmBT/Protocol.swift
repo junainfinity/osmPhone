@@ -67,6 +67,8 @@ enum CommandType: String, Codable {
     case injectAudio = "inject_audio"
     case transferAudio = "transfer_audio"
     case sendDTMF = "send_dtmf"
+    case unpair = "unpair"
+    case listPaired = "list_paired"
 }
 
 // MARK: - Event Payloads

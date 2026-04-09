@@ -190,6 +190,11 @@ tts:
 
 voice_mode:
   default: "hitl"              # hitl (human-in-the-loop) | autonomous
+
+realtime:
+  enabled: false               # true = use OpenAI Realtime API (<300ms)
+  model: "gpt-4o-realtime-preview"
+  voice: "alloy"               # alloy | echo | shimmer | ash | coral | sage
 ```
 
 Environment variables override YAML:
@@ -218,7 +223,7 @@ osmPhone is designed for **parallel development by multiple AI agents or human d
 ```bash
 make test          # all tests
 make test-bt       # Swift (9 tests — protocol encoding)
-make test-core     # Python (56 tests — config, bridge, WS, LLM, STT, TTS, VAD, pipeline, SMS, store)
+make test-core     # Python (66 tests — config, bridge, WS, LLM, STT, TTS, VAD, pipeline, realtime, SMS, store)
 make test-ui       # Next.js (31 tests — WS provider, dialer, calls, messages, settings)
 ```
 
@@ -258,13 +263,13 @@ osmPhone/
 - [x] Full documentation and test plan
 
 ### Phase 2 — Bluetooth & SMS (in progress)
-- [ ] Real device pairing and HFP connection
+- [x] Real device pairing and HFP connection (verified with iPhone 17 Pro — pairs, HFP connects with battery/signal, SLC stability WIP)
 - [x] SMS send/receive orchestration (Python layer)
 - [x] LLM-powered auto-reply for texts
 - [x] Conversation history (SQLite)
 - [x] Full main.py wiring (BT events -> WS, WS actions -> BT commands)
 
-### Phase 3 — Voice Calls
+### Phase 3 — Voice Calls (in progress)
 - [ ] SCO audio capture via CoreAudio
 - [x] Voice activity detection (VAD) with streaming + batch modes
 - [x] STT engine (OpenAI Whisper API + local stub)
@@ -272,7 +277,7 @@ osmPhone/
 - [x] STT → LLM → TTS audio pipeline with HITL support
 - [x] Audio resampling engine
 - [ ] Audio injection back into SCO channel
-- [ ] OpenAI Realtime API fast path
+- [x] **OpenAI Realtime API fast path** — `<300ms` latency, config-gated, 10/10 tests
 
 ### Phase 4 — Web UI ✅
 - [x] Next.js + shadcn framework bootstrap

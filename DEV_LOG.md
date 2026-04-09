@@ -4,11 +4,11 @@
 
 **What this project is**: A Mac app that emulates a Bluetooth headset (HFP profile) to any phone, then uses LLM/STT/TTS to handle texts and calls. Three processes: Swift (Bluetooth), Python (AI), Next.js (UI).
 
-**Current state (2026-04-09, update 2)**: Phases 1-4 largely complete. All Python AI components, full Next.js UI, and integration wiring are done. 96/96 tests passing. Remaining: real Bluetooth hardware testing, SCO audio capture, and OpenAI Realtime API.
+**Current state (2026-04-09, update 3)**: Phases 1-4 largely complete. OpenAI Realtime API pipeline implemented (PY-001.10). 66/66 Python tests passing (56+10 new), 9 Swift, 31 Next.js = 106 total. Bluetooth pairing and HFP connect verified with real iPhone 17 Pro (connects, gets battery/signal, but SLC drops after ~5s — needs HFP feature negotiation tuning). Remaining: SCO audio capture, HFP stability fix, local STT/TTS stubs.
 
 ### What's working (96/96 tests pass)
 - **Swift** (9 tests): Protocol encode/decode, all BT wrappers compile
-- **Python** (56 tests): Config, BT bridge, WS server, LLM engine, STT engine, TTS engine, VAD, resampler, audio pipeline, SMS handler, conversation store
+- **Python** (66 tests): Config, BT bridge, WS server, LLM engine, STT engine, TTS engine, VAD, resampler, audio pipeline, realtime pipeline, SMS handler, conversation store
 - **Next.js** (31 tests): WS provider, layout, dialer, active call, incoming call, messages, settings, device pairing
 - **main.py fully wired**: BT events -> WS broadcasts, WS actions -> BT commands, audio pipeline + SMS handler instantiated
 
@@ -18,7 +18,7 @@
 - **STT local engine (WhisperLocalEngine)** returns placeholder text. Needs `lightning-whisper-mlx`.
 - **TTS local engine (LocalTTSEngine)** returns silence. Needs `mlx-audio`.
 - **LLM local engine** delegates to OpenAI-compatible endpoint (works with ollama/vllm).
-- **PY-001.10 OpenAI Realtime API** not started.
+- **PY-001.10 OpenAI Realtime API** implemented (10/10 tests pass). Needs real API key + live BT audio to end-to-end test.
 - **Provider hot-switching** (changing STT/TTS mid-session) not implemented in main.py.
 
 ### Environment quirks
@@ -37,13 +37,18 @@
 8. **SMS handler broadcast signature** (fixed): Was passing single dict, now uses `(event_type, data)` two-arg call.
 9. **OpenAI client requires API key even for tests**: Use `"sk-placeholder"` as fallback to avoid init errors.
 10. **store.py was at wrong path** (fixed): Moved to `sms/conversation.py` per spec, kept re-export shim.
+11. **TCC crash on raw binary**: macOS requires `NSBluetoothAlwaysUsageDescription` in an app bundle's Info.plist. Running the Swift binary directly crashes with `__TCC_CRASHING_DUE_TO_PRIVACY_VIOLATION__`. Fix: wrap in `.app` bundle with Info.plist and ad-hoc codesign.
+12. **IOBluetoothHandsFreeDeviceDelegate method signatures**: The delegate methods require `IOBluetoothHandsFreeDevice!` not `IOBluetoothHandsFree!`, and `incomingCallFrom` takes `String!` not `NSNumber!`. Wrong types compile but delegate methods silently never fire.
+13. **Separate `connected:` and `disconnected:` callbacks**: `IOBluetoothHandsFreeDelegate` has two methods, not one with a bool. Using only `connected:` for both misses the connect event.
+14. **HFP SLC drops after ~5 seconds**: iPhone disconnects shortly after SLC establishment. Likely needs correct `supportedFeatures` bitmask (codec negotiation, 3-way calling, etc.) and possibly proper SDP record. Set features to 0xFF (all bits) but still drops — needs further investigation.
+15. **Pairing key mismatch after Mac name change**: Changing the Mac's Bluetooth name invalidates cached pairing keys. The Mac thinks it's paired but the iPhone doesn't agree. `removeFromFavorites()` doesn't clear link keys. Need Bluetooth module reset or System Settings forget.
 
 ### What to tackle next (priority order)
-1. **Real Bluetooth testing**: Pair a phone, verify HFP connection and call control work
-2. **BT-001.5 SCOAudioBridge**: Implement CoreAudio AudioUnit capture/injection
-3. **PY-001.10**: OpenAI Realtime API fast path
-4. **Real STT/TTS**: Replace local stubs with lightning-whisper-mlx and mlx-audio
-5. **Provider hot-switching**: Implement `update_settings` handler in main.py
+1. **Fix HFP SLC stability**: Investigate why iPhone drops the SLC after 5s. May need proper SDP record, correct feature negotiation, or AT command response tuning.
+2. **BT-001.5 SCOAudioBridge**: Implement CoreAudio AudioUnit capture/injection (blocked on stable HFP)
+3. **Real STT/TTS**: Replace local stubs with lightning-whisper-mlx and mlx-audio
+4. **Provider hot-switching**: Implement `update_settings` handler in main.py
+5. **End-to-end voice test**: Once HFP is stable + SCO capture works, test full voice pipeline
 
 ---
 
@@ -101,7 +106,7 @@
 | PY-001.7 | VAD | COMPLETE | None | Antigravity | Antigravity | Simple energy-based VAD implemented, verified 4/4 tests |
 | PY-001.8 | Audio Resampler | COMPLETE | None | Antigravity | Antigravity | Linear interpolation resampler implemented, verified 4/4 tests |
 | PY-001.9 | Audio Pipeline | COMPLETE | PY-001.2, PY-001.4, PY-001.5, PY-001.6, PY-001.7, PY-001.8 | Antigravity | Antigravity | Real-time orchestration mapping VAD->STT->LLM->TTS in autonomous and hitl states. All unit tests passed |
-| PY-001.10 | Realtime API | NOT_STARTED | PY-001.1, PY-001.2 | | | OpenAI Realtime fast path |
+| PY-001.10 | Realtime API | COMPLETE | PY-001.1, PY-001.2 | Claude Opus 4.6 | Claude Opus 4.6 | 10/10 tests pass. WebSocket pipeline: SCO 8kHz↔24kHz resampling, server VAD, HITL buffering, reconnection. Gated by config.realtime.enabled |
 | PY-001.11 | SMS Handler | COMPLETE | PY-001.2, PY-001.4 | Antigravity | Antigravity | Orchestrator linking store, LLM, BT. verified 4/4 tests |
 | PY-001.12 | Conversation Store | COMPLETE | None | Antigravity | Antigravity | SQLite history completed, passed 5/5 tests |
 | PY-001.13 | Main entry (Python) | COMPLETE | All PY-001.* | Claude Opus 4.6 | Claude Opus 4.6 | Full wiring: BT events->WS, WS actions->BT, pipeline+SMS handler instantiated |
@@ -191,3 +196,11 @@ _Record significant architectural decisions, changes, or discoveries here._
 | 2026-04-09 | PY-001.12 | Moved store.py -> sms/conversation.py per spec | ARCHITECTURE.md specifies sms/conversation.py location | Claude Opus 4.6 |
 | 2026-04-09 | PY-001.13 | Wired main.py with full component integration | Was skeleton with `pass` stubs, now fully operational | Claude Opus 4.6 |
 | 2026-04-09 | UI-001.4 | Fixed pairing test selectors to match actual UI text | Test said "Scan Devices" but button says "Scan" | Claude Opus 4.6 |
+| 2026-04-09 | BT-001.7 | Created OsmBT.app bundle with Info.plist | macOS TCC requires NSBluetoothAlwaysUsageDescription in app bundle | Claude Opus 4.6 |
+| 2026-04-09 | BT-001.4 | Fixed ALL delegate method signatures to use IOBluetoothHandsFreeDevice | Compiler warnings: "nearly matches" = silently never called | Claude Opus 4.6 |
+| 2026-04-09 | BT-001.4 | Split `connected:` into separate `connected:` + `disconnected:` delegates | SDK has two methods, not one with bool status | Claude Opus 4.6 |
+| 2026-04-09 | BT-001.4 | Set supportedFeatures = 0xFF (all HFP features) | Apple Accessory Guidelines require codec negotiation, 3-way, etc. | Claude Opus 4.6 |
+| 2026-04-09 | BT-001.3 | Auto-confirm pairing in delegate callback | Eliminates socket round-trip delay that caused pairing timeout | Claude Opus 4.6 |
+| 2026-04-09 | BT-001.7 | Added `unpair` and `list_paired` commands | Needed for Bluetooth state management | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.10 | Implemented OpenAI Realtime API pipeline | New file: audio/realtime.py. Config-gated, same interface as AudioPipeline | Claude Opus 4.6 |
+| 2026-04-09 | PY-001.1 | Added voice/turn_detection fields to RealtimeConfig | Required for Realtime API session configuration | Claude Opus 4.6 |

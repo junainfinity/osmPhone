@@ -120,6 +120,12 @@ extension BluetoothManager: IOBluetoothDevicePairDelegate {
               let device = pair.device() else { return }
         let address = device.addressString ?? "unknown"
         let name = device.name ?? "Unknown Device"
+
+        // Auto-confirm immediately from Mac side to avoid timeout
+        // The user still needs to tap Pair on the iPhone
+        print("[BluetoothManager] Auto-confirming pairing for \(name), code: \(numericValue)")
+        pair.replyUserConfirmation(true)
+
         delegate?.bluetoothManager(self, pairConfirmRequired: address, name: name, numericValue: numericValue)
     }
 }

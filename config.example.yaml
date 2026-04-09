@@ -75,10 +75,15 @@ audio:
 
 realtime:
   # Use OpenAI Realtime API as fast path for voice calls
-  # When enabled, bypasses separate STT/LLM/TTS pipeline
+  # When enabled, bypasses separate STT/LLM/TTS pipeline (<300ms latency)
   enabled: false
   # Model for realtime (e.g., "gpt-4o-realtime-preview")
   model: "gpt-4o-realtime-preview"
+  # Voice for realtime responses
+  # Options: "alloy", "echo", "shimmer", "ash", "ballad", "coral", "sage", "verse"
+  voice: "alloy"
+  # Turn detection: "server_vad" (OpenAI detects speech end) or "manual"
+  turn_detection: "server_vad"
 
 server:
   # WebSocket port for frontend communication
